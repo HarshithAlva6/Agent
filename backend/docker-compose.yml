@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: claims_db
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 
+      POSTGRES_DB: waytoo
+    ports:
+      - "5432:5432"
+    volumes:
+      - claims_data:/var/lib/postgresql/data
+    healthcheck: 
+      test: ["CMD-SHELL", "pg_isready -U postgres -d waytoo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: waytoo_grafana
+    ports:
+      - "3001:3000" # Grafana UI will be on http://localhost:3001
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD} # Reads from .env file
+      GF_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy # Ensures Grafana starts only after Postgres is healthy
+
+  # NEW SERVICE: RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine # Image with management UI
+    container_name: claims_rabbitmq
+    ports:
+      - "5672:5672" # Standard AMQP port
+      - "15672:15672" # Management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest # Default credentials for development
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq # Persist RabbitMQ data
+volumes:
+  claims_data: # This volume persists your PostgreSQL data
+  grafana_data:    # This volume persists your Grafana configuration and dashboards
+  rabbitmq_data:
